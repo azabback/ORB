@@ -59,22 +59,7 @@ class App:
         )
         return eager_result
 
-if __name__ == "__main__":
-    app = App(NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD, NEO4J_DATABASE, GEMINI_API_KEY)
-
-    try:
-        # eager_result = app.test_query()
-        # records = eager_result[0]
-        # for record in records:
-        #     node_n_id = record["n.id"] 
-        #     relationship = record["r"].type
-        #     node_m_id = record["m.id"] 
-
-        #     print(f"Node n ID: {node_n_id}, Relationship: {relationship}, Node m ID: {node_m_id},")
-        
-        print("#################################")
-        entities = ["ble", "PKES", "ABC"]
-        eager_result = app.test_entities_query(entities)
+    def display_eager_result(eager_result):
         records = eager_result[0]
         for record in records:
             node_n_id = record["n.id"] 
@@ -84,6 +69,18 @@ if __name__ == "__main__":
             if relationship != "HAS_ENTITY":
                 # print(f"(Node n ID: {node_n_id}, Relationship: {relationship}, Node m ID: {node_m_id})")
                 print(f"({node_n_id} {relationship} {node_m_id})")
+
+if __name__ == "__main__":
+    app = App(NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD, NEO4J_DATABASE, GEMINI_API_KEY)
+
+    try:
+        # eager_result = app.test_query()
+        # app.display_eager_result(eager_result)
+        
+        print("#################################")
+        entities = ["ble", "PKES", "ABC"]
+        eager_result = app.test_entities_query(entities)
+        app.display_eager_result(eager_result)
         
 
     finally:
