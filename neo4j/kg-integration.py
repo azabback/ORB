@@ -21,15 +21,20 @@ class App:
         identity all of the entities in the text, and return a list of all unique entities.
         The entities should be unique. A single entity can appear in different formats in the text, so if any two conceptually mean the same thing, make sure no duplicates appear.
         Provide one list with unique items with the header "Unique Entities".
-        Provide another list with the omitted duplicates along with the singular entity that was kept with the header "Duplicate Entities".
-        Do not provide extra information. Only provide a comma separated lists without spaces."""
+        Provide another list with the header "Duplicate Entities" and this format: (kept entity: omitted duplicate entitie with commas).
+        Do not provide extra information. Only provide a comma separated lists without spaces around commas."""
         
-        # genai.configure(api_key=gemini_key)
-        # self.model = genai.GenerativeModel("gemini-2.0-flash-lite", system_instruction=system_instructions)
+        genai.configure(api_key=gemini_key)
+        self.model = genai.GenerativeModel("gemini-2.0-flash-lite", system_instruction=system_instructions)
         # response_text = self.model.generate_content(prompt).text
 
     def close(self):
         self.driver.close()
+    
+    def test_llm(self):
+        sample_text = "I wonder what the entities in this paragraph are. Yo, I have a question. It's about BLE encryption. And tesla cars and how they use ble. BLE stands for bluetooth low energy. Do you know that? Encryption is cool."
+        response_text = self.model.generate_content(sample_text).text
+        print(response_text)
     
     def test_entities_query(self, entities):
         query = """
@@ -77,11 +82,12 @@ if __name__ == "__main__":
         # eager_result = app.test_query()
         # app.display_eager_result(eager_result)
         
-        print("#################################")
-        entities = ["ble", "PKES", "ABC"]
-        eager_result = app.test_entities_query(entities)
-        app.display_eager_result(eager_result)
-        
+        # print("#################################")
+        # entities = ["ble", "PKES", "ABC"]
+        # eager_result = app.test_entities_query(entities)
+        # app.display_eager_result(eager_result)
 
+        app.test_llm()
+        
     finally:
         app.close()
