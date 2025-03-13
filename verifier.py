@@ -1,5 +1,6 @@
 from sentence_transformers import SentenceTransformer, util
 import difflib
+from kg_integration import connect_kg
 
 # Load a sentence embedding model for similarity comparison
 embedder = SentenceTransformer('all-MiniLM-L6-v2')
@@ -40,16 +41,19 @@ def highlight_differences(text1, text2):
     diff_output = ' '.join([word if word[0] == ' ' else f"**{word}**" for word in diff])
     return diff_output
 
-def kg_fact_check_llm_responses(responses):
-    model_names = list(responses.keys())
-    scores = {}
 
-    for i in range(len(model_names)):
-        model = model_names[i]
-        # score = compute_similarity(responses[model1], responses[model2])
-        # scores[f"{model1} vs {model2}"] = round(score, 4)
-
-    return scores
+def kg_fact_check_llm_responses(question, responses):
+    '''
+    Outputs scores dict. Keys are model names and values are strings containing scores and reasoning
+    '''
+    try:
+        kg = connect_kg()
+        scores = {}
+        for model, response in responses.items():
+            scores[model] = kg.evaluate_factual_accuracy(question, response)
+        return scores
+    except Exception as e:
+        return f"Error connecting to Neo4j Knowledge Graph: {str(e)}"
 
 def verify_llm_responses(question, responses):
     """
@@ -62,6 +66,10 @@ def verify_llm_responses(question, responses):
         model1, model2 = pair.split(" vs ")
         differences[pair] = highlight_differences(responses[model1], responses[model2])
     
-    kg_accuracy_scores = kg_fact_check_llm_responses(responses)
+    kg_accuracy_scores = kg_fact_check_llm_responses(question, responses)
 
     return similarity_scores, differences, kg_accuracy_scores
+
+
+# print(kg_fact_check_llm_responses("Who are the authors", {"gemini":"The authors are Xinyi Xie, Kun Jiang"}))
+# print(kg_fact_check_llm_responses("What is BLE", {"gemini":"BLE includes encryption for secure communication. Tesla Model 3 has some security concerns but no major vulnerabilities. AI models do not always require training data."}))

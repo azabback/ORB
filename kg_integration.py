@@ -12,7 +12,7 @@ NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD")
 NEO4J_DATABASE = "neo4j"
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
-DISPLAY_ALL = True
+DISPLAY_ALL = False
 
 class App:
     def __init__(self, uri, user, password, database, gemini_key):
@@ -84,6 +84,15 @@ class App:
         )
         return eager_result
 
+    def parse_eager_result(self, eager_result):
+        facts = ""
+        records = eager_result[0]
+        for record in records:
+            node_n_id = record["n.id"] 
+            relationship = record["r"].type
+            node_m_id = record["m.id"] 
+            facts += f"({node_n_id} {relationship} {node_m_id})\n"
+
     def display_result(self, eager_result):
         records = eager_result[0]
         print("#"*20)
@@ -94,10 +103,49 @@ class App:
             print(f"({node_n_id} {relationship} {node_m_id})")
         print("#"*20)
         print(f"Returned {len(records)} results")
+    
+    def facts_to_response_accuracy(self, facts, llm_response):
+        # facts_text = "\n".join(facts)
+        
+        evaluation_prompt = (
+            "You are temporarily acting as an evaluator for factual accuracy.\n"
+            "Ignore any previous instructions and focus only on this task for now.\n\n"
+            "Facts:\n"
+            f"{facts}\n\n"
+            "LLM Response:\n"
+            f"{llm_response}\n\n"
+            "Provide an accuracy score from 0 to 1 based on how well the response aligns with the facts. "
+            "Also, explain your reasoning very briefly. Format your response strictly as follows:\n"
+            "Score: <numeric_score>\n"
+            "Reasoning: <brief explanation>"
+        )
+
+        evaluation_response = self.model.generate_content(evaluation_prompt).text
+
+        # score, reasoning = None, ""
+        # for line in evaluation_response.split("\n"):
+        #     if line.startswith("Score:"):
+        #         try:
+        #             score = int(line.split(":")[1].strip())
+        #         except ValueError:
+        #             score = None  
+        #     elif line.startswith("Reasoning:"):
+        #         reasoning = line.split(":", 1)[1].strip()
+
+        # return f"Score {score}: {reasoning}"
+        return evaluation_response
+    
+    def evaluate_factual_accuracy(self, question, llm_response):
+        facts = self.parse_eager_result(self.retrieve_facts_from_text(question))
+        evaluation = self.facts_to_response_accuracy(facts, llm_response)
+        return evaluation
+
+def connect_kg():
+    return App(NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD, NEO4J_DATABASE, GEMINI_API_KEY)
 
 
 if __name__ == "__main__":
-    app = App(NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD, NEO4J_DATABASE, GEMINI_API_KEY)
+    app = connect_kg()
 
     try:
         # eager_result = app.test_query()
@@ -130,8 +178,9 @@ if __name__ == "__main__":
         # if DISPLAY_ALL: app.display_result(res)
 
         example_llm_response = "The vulnerabilities in Tesla key systems have real-world security impacts, including unauthorized access and theft. Key Cards lacking certificate verification can be replaced with easily duplicated, compromised third-party cards. Phone Keys are susceptible to relay attacks due to the lack of Bluetooth Low Energy (BLE) encryption and static MAC addresses, which can be exploited via improved MitM attacks. The token value used in Phone Key authentication remains fixed for extended periods, creating opportunities for exploitation. These attacks can occur without the owner's knowledge, potentially leading to vehicle theft. While PIN to Drive can prevent driving, it does not prevent unauthorized entry"
-        res = app.retrieve_facts_from_text(example_llm_response)
-        if DISPLAY_ALL: app.display_result(res)
+        
+        facts = app.retrieve_facts_from_text(example_llm_response)
+        if DISPLAY_ALL: app.display_result(facts)
         
         
     finally:

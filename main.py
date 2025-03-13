@@ -168,10 +168,10 @@ if __name__ == "__main__":
             responses = {
                 "Cohere": answer_question_with_cohere(text, question),
                 "Mistral": answer_question_with_mistral(text, question),
-                "Gemini": answer_question_with_cohere(text, question),
+                "Gemini": answer_question_with_cohere(text, question)
             }
 
-            similarity_scores, differences = verify_llm_responses(question, responses)
+            similarity_scores, differences, kg_accuracy_scores = verify_llm_responses(question, responses)
 
             # Print the answers from each LLM
             print("\nLLM Responses:")
@@ -187,6 +187,11 @@ if __name__ == "__main__":
             print("\nDifferences Between Responses:")
             for pair, diff_text in differences.items():
                 print(f"\n{pair}:\n{diff_text}\n")
+            
+            # Print fact accuracy scores
+            print("\nAccuracy (Fact Checking with Knowledge Graph):")
+            for model, score_and_reasoning in kg_accuracy_scores.items():
+                print(f"{model}:\n{score_and_reasoning}")
 
     except FileNotFoundError as e:
         print(f"Error: {e}")
