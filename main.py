@@ -1,5 +1,6 @@
 import os
 import fitz  # PyMuPDF for PDF reading
+import gradio as gr
 import cohere
 from mistralai import Mistral
 import google.generativeai as genai  # Gemini SDK
@@ -129,71 +130,161 @@ def answer_long_text(text, question, model_choice):
 def format_summary_with_newlines(summary):
     return summary.replace(". ", ".\n")
 
+def summarize_text(text, choice):
+    if choice == "Cohere":
+        # print("\nSummarizing the paper using Cohere...")
+        summary = summarize_long_text(text, "Cohere")
+    elif choice == "Mistral":
+        # print("\nSummarizing the paper using Mistral...")
+        summary = summarize_long_text(text, "Mistral")
+    else:
+        # print("\nSummarizing the paper using Gemini...")
+        summary = summarize_long_text(text, "Gemini")
+
+    formatted_summary = format_summary_with_newlines(summary)
+    return formatted_summary
+    # print("\nSummary:\n", formatted_summary)
+
+def process_and_summarize(file_input, model_choice):
+    text = extract_text_from_pdf(file_input)
+    summary = summarize_text(text, model_choice)
+    return text, summary
+
+def answer_question_and_verify(text, question):
+    output = ""
+    responses = {
+                    "Cohere": answer_question_with_cohere(text, question),
+                    "Mistral": answer_question_with_mistral(text, question),
+                    "Gemini": answer_question_with_cohere(text, question)
+                }
+
+    similarity_scores, differences, kg_accuracy_scores = verify_llm_responses(question, responses)
+
+    # Print the answers from each LLM
+    output += "\nLLM Responses:"
+    for model, response in responses.items():
+        output += f"\n{model}:\n{response}\n"
+
+    # Print similarity scores
+    output += "\nSimilarity Scores:"
+    for pair, score in similarity_scores.items():
+        output += f"{pair}: {score:.4f}"
+
+    # Print highlighted differences
+    output += "\nDifferences Between Responses:"
+    for pair, diff_text in differences.items():
+        output += f"\n{pair}:\n{diff_text}\n"
+    
+    # Print fact accuracy scores
+    output += "\nAccuracy (Fact Checking with Knowledge Graph):"
+    for model, score_and_reasoning in kg_accuracy_scores.items():
+        output += f"\n{model}:\n{score_and_reasoning}\n"
+
+    return output
+
+    
 # CLI for testing
 if __name__ == "__main__":
-    pdf_path = input("Enter the full path to the PDF file: ").strip()
-    try:
-        text = extract_text_from_pdf(pdf_path)
+    use_gradio = True
 
-        print("\nChoose a model:")
-        print("1. Cohere")
-        print("2. Mistral")
-        print("3. Gemini")
-        choice = input("Enter choice (1, 2, or 3): ").strip()
+    if use_gradio:
+        # Gradio UI
+        with gr.Blocks() as demo:
+            gr.Markdown("# 📄 PDF Summarizer & QA")
 
-        if choice == "1":
-            print("\nSummarizing the paper using Cohere...")
-            summary = summarize_long_text(text, "Cohere")
-        elif choice == "2":
-            print("\nSummarizing the paper using Mistral...")
-            summary = summarize_long_text(text, "Mistral")
-        else:
-            print("\nSummarizing the paper using Gemini...")
-            summary = summarize_long_text(text, "Gemini")
+            with gr.Row():
+                file_input = gr.File(label="Upload a PDF", type="filepath")
+                model_choice = gr.Radio(["Cohere", "Mistral" ,"Gemini"], label="Model Options:", value="Cohere")
 
-        formatted_summary = format_summary_with_newlines(summary)
-        print("\nSummary:\n", formatted_summary)
+            with gr.Row():
+                process_button = gr.Button("Summarize")
 
-        while True:
-            question = input("\nAsk a question about the paper (or type 'exit' to quit): ")
-            if question.lower() == "exit":
-                break
+            with gr.Row():
+                text_output = gr.Textbox(label="Extracted Text", interactive=False)
+                summary_output = gr.Textbox(label="Summary", interactive=False)
+
+            process_button.click(process_and_summarize, inputs=[file_input, model_choice], outputs=[text_output, summary_output])
+
+            gr.Markdown("## 🔍 Ask a Question about the Paper")
+
+            with gr.Row():
+                question_input = gr.Textbox(label="Your Question")
+                question_button = gr.Button("Get Answer")
+
+            with gr.Row():
+                answer_output = gr.Textbox(label="Answer", interactive=False)
+
+            question_button.click(answer_question_and_verify, inputs=[text_output, question_input], outputs=answer_output)
+
+        # Launch Gradio app
+        demo.launch()
+
+    else:
         
-            # responses = {
-            #     "Cohere": answer_long_text(text, question, "Cohere"),
-            #     "Mistral": answer_long_text(text, question, "Mistral"),
-            #     "Gemini": answer_long_text(text, question, "Gemini"),
-            # }
+        pdf_path = input("Enter the full path to the PDF file: ").strip()
+        try:
+            text = extract_text_from_pdf(pdf_path)
 
-            responses = {
-                "Cohere": answer_question_with_cohere(text, question),
-                "Mistral": answer_question_with_mistral(text, question),
-                "Gemini": answer_question_with_cohere(text, question)
-            }
+            print("\nChoose a model:")
+            print("1. Cohere")
+            print("2. Mistral")
+            print("3. Gemini")
+            choice = input("Enter choice (1, 2, or 3): ").strip()
 
-            similarity_scores, differences, kg_accuracy_scores = verify_llm_responses(question, responses)
+            if choice == "1":
+                print("\nSummarizing the paper using Cohere...")
+                summary = summarize_long_text(text, "Cohere")
+            elif choice == "2":
+                print("\nSummarizing the paper using Mistral...")
+                summary = summarize_long_text(text, "Mistral")
+            else:
+                print("\nSummarizing the paper using Gemini...")
+                summary = summarize_long_text(text, "Gemini")
 
-            # Print the answers from each LLM
-            print("\nLLM Responses:")
-            for model, response in responses.items():
-                print(f"\n{model}:\n{response}")
+            formatted_summary = format_summary_with_newlines(summary)
+            print("\nSummary:\n", formatted_summary)
 
-            # Print similarity scores
-            print("\nSimilarity Scores:")
-            for pair, score in similarity_scores.items():
-                print(f"{pair}: {score:.4f}")
-
-            # Print highlighted differences
-            print("\nDifferences Between Responses:")
-            for pair, diff_text in differences.items():
-                print(f"\n{pair}:\n{diff_text}\n")
+            while True:
+                question = input("\nAsk a question about the paper (or type 'exit' to quit): ")
+                if question.lower() == "exit":
+                    break
             
-            # Print fact accuracy scores
-            print("\nAccuracy (Fact Checking with Knowledge Graph):")
-            for model, score_and_reasoning in kg_accuracy_scores.items():
-                print(f"{model}:\n{score_and_reasoning}")
+                # responses = {
+                #     "Cohere": answer_long_text(text, question, "Cohere"),
+                #     "Mistral": answer_long_text(text, question, "Mistral"),
+                #     "Gemini": answer_long_text(text, question, "Gemini"),
+                # }
 
-    except FileNotFoundError as e:
-        print(f"Error: {e}")
-    except Exception as e:
-        print(f"Unexpected error: {e}")
+                responses = {
+                    "Cohere": answer_question_with_cohere(text, question),
+                    "Mistral": answer_question_with_mistral(text, question),
+                    "Gemini": answer_question_with_cohere(text, question)
+                }
+
+                similarity_scores, differences, kg_accuracy_scores = verify_llm_responses(question, responses)
+
+                # Print the answers from each LLM
+                print("\nLLM Responses:")
+                for model, response in responses.items():
+                    print(f"\n{model}:\n{response}")
+
+                # Print similarity scores
+                print("\nSimilarity Scores:")
+                for pair, score in similarity_scores.items():
+                    print(f"{pair}: {score:.4f}")
+
+                # Print highlighted differences
+                print("\nDifferences Between Responses:")
+                for pair, diff_text in differences.items():
+                    print(f"\n{pair}:\n{diff_text}\n")
+                
+                # Print fact accuracy scores
+                print("\nAccuracy (Fact Checking with Knowledge Graph):")
+                for model, score_and_reasoning in kg_accuracy_scores.items():
+                    print(f"{model}:\n{score_and_reasoning}")
+
+        except FileNotFoundError as e:
+            print(f"Error: {e}")
+        except Exception as e:
+            print(f"Unexpected error: {e}")
+
