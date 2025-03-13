@@ -1,7 +1,7 @@
 import os
 import fitz  # PyMuPDF for PDF reading
 import cohere
-from mistralai.client import MistralClient
+from mistralai import Mistral
 import google.generativeai as genai  # Gemini SDK
 from dotenv import load_dotenv
 from verifier import verify_llm_responses
@@ -17,7 +17,7 @@ if not COHERE_API_KEY or not MISTRAL_API_KEY or not GEMINI_API_KEY:
 
 # Initialize API Clients
 cohere_client = cohere.Client(COHERE_API_KEY)
-mistral_client = MistralClient(api_key=MISTRAL_API_KEY)
+mistral_client = Mistral(api_key=MISTRAL_API_KEY)
 genai.configure(api_key=GEMINI_API_KEY)  # Gemini Initialization
 
 # Extract text from PDF
@@ -47,7 +47,7 @@ def summarize_with_mistral(text, model="mistral-small"):
     prompt = f"Summarize the following research paper:\n\n{shortened_text}..."
     messages = [{"role": "user", "content": prompt}]
     try:
-        response = mistral_client.chat(model=model, messages=messages)
+        response = mistral_client.chat.complete(model=model, messages=messages)
         return response.choices[0].message.content.strip()
     except Exception as e:
         return f"Error summarizing with Mistral: {str(e)}"
@@ -87,7 +87,7 @@ def answer_question_with_mistral(text, question, model="mistral-small"):
     prompt = f"The following is a research paper:\n\n{text}...\n\nAnswer this question: {question}"
     messages = [{"role": "user", "content": prompt}]
     try:
-        response = mistral_client.chat(model=model, messages=messages)
+        response = mistral_client.chat.complete(model=model, messages=messages)
         return response.choices[0].message.content.strip()
     except Exception as e:
         return f"Error answering question with Mistral: {str(e)}"
@@ -118,8 +118,9 @@ def answer_long_text(text, question, model_choice):
         "Please provide a final, comprehensive answer to the user's question."
     )
     messages = [{"role": "user", "content": final_prompt}]
+    
     try:
-        response = mistral_client.chat(model="mistral-small", messages=messages)
+        response = mistral_client.chat.complete(model="mistral-small", messages=messages)
         return response.choices[0].message.content.strip()
     except Exception as e:
         return f"Error answering question in final step: {str(e)}"
@@ -157,19 +158,17 @@ if __name__ == "__main__":
             question = input("\nAsk a question about the paper (or type 'exit' to quit): ")
             if question.lower() == "exit":
                 break
+        
+            # responses = {
+            #     "Cohere": answer_long_text(text, question, "Cohere"),
+            #     "Mistral": answer_long_text(text, question, "Mistral"),
+            #     "Gemini": answer_long_text(text, question, "Gemini"),
+            # }
 
-            # if choice == "1":
-            #     answer = answer_long_text(text, question, "Cohere")
-            # elif choice == "2":
-            #     answer = answer_long_text(text, question, "Mistral")
-            # else:
-            #     answer = answer_long_text(text, question, "Gemini")
-            #
-            # print("\nAnswer:\n", answer)
             responses = {
-                "Cohere": answer_long_text(text, question, "Cohere"),
-                "Mistral": answer_long_text(text, question, "Mistral"),
-                "Gemini": answer_long_text(text, question, "Gemini"),
+                "Cohere": answer_question_with_cohere(text, question),
+                "Mistral": answer_question_with_mistral(text, question),
+                "Gemini": answer_question_with_cohere(text, question),
             }
 
             similarity_scores, differences = verify_llm_responses(question, responses)
@@ -188,7 +187,6 @@ if __name__ == "__main__":
             print("\nDifferences Between Responses:")
             for pair, diff_text in differences.items():
                 print(f"\n{pair}:\n{diff_text}\n")
-
 
     except FileNotFoundError as e:
         print(f"Error: {e}")

@@ -40,6 +40,16 @@ def highlight_differences(text1, text2):
     diff_output = ' '.join([word if word[0] == ' ' else f"**{word}**" for word in diff])
     return diff_output
 
+def kg_fact_check_llm_responses(responses):
+    model_names = list(responses.keys())
+    scores = {}
+
+    for i in range(len(model_names)):
+        model = model_names[i]
+        # score = compute_similarity(responses[model1], responses[model2])
+        # scores[f"{model1} vs {model2}"] = round(score, 4)
+
+    return scores
 
 def verify_llm_responses(question, responses):
     """
@@ -51,5 +61,7 @@ def verify_llm_responses(question, responses):
     for pair in similarity_scores.keys():
         model1, model2 = pair.split(" vs ")
         differences[pair] = highlight_differences(responses[model1], responses[model2])
+    
+    kg_accuracy_scores = kg_fact_check_llm_responses(responses)
 
-    return similarity_scores, differences
+    return similarity_scores, differences, kg_accuracy_scores
