@@ -3,6 +3,7 @@ import fitz  # PyMuPDF for PDF reading
 import gradio as gr
 import cohere
 from mistralai import Mistral
+# from mistralai.client import MistralClient
 import google.generativeai as genai  # Gemini SDK
 from dotenv import load_dotenv
 from verifier import verify_llm_responses
@@ -11,6 +12,7 @@ from verifier import verify_llm_responses
 load_dotenv()
 COHERE_API_KEY = os.getenv("COHERE_API_KEY")
 MISTRAL_API_KEY = os.getenv("MISTRAL_API_KEY")
+# mistral_client = MistralClient(api_key=MISTRAL_API_KEY)
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
 if not COHERE_API_KEY or not MISTRAL_API_KEY or not GEMINI_API_KEY:
@@ -18,7 +20,7 @@ if not COHERE_API_KEY or not MISTRAL_API_KEY or not GEMINI_API_KEY:
 
 # Initialize API Clients
 cohere_client = cohere.Client(COHERE_API_KEY)
-mistral_client = Mistral(api_key=MISTRAL_API_KEY)
+mistral_client = MistralClient(api_key=MISTRAL_API_KEY)
 genai.configure(api_key=GEMINI_API_KEY)  # Gemini Initialization
 
 # Extract text from PDF
@@ -151,36 +153,51 @@ def process_and_summarize(file_input, model_choice):
     return text, summary
 
 def answer_question_and_verify(text, question):
-    output = ""
     responses = {
-                    "Cohere": answer_question_with_cohere(text, question),
-                    "Mistral": answer_question_with_mistral(text, question),
-                    "Gemini": answer_question_with_cohere(text, question)
-                }
+        "Cohere": answer_question_with_cohere(text, question),
+        "Mistral": answer_question_with_mistral(text, question),
+        "Gemini": answer_question_with_gemini(text, question),
+    }
 
     similarity_scores, differences, kg_accuracy_scores = verify_llm_responses(question, responses)
+    llm_responses_output = "\n".join([f"{model}:\n{response}" for model, response in responses.items()])
+    similarity_output = "\n".join([f"{pair}: {score:.4f}" for pair, score in similarity_scores.items()])
+    differences_output = "\n\n".join([f"{pair}:\n{diff_text}" for pair, diff_text in differences.items()])
+    accuracy_output = "\n".join([f"{model}: {score_and_reasoning}" for model, score_and_reasoning in kg_accuracy_scores.items()])
 
-    # Print the answers from each LLM
-    output += "\nLLM Responses:"
-    for model, response in responses.items():
-        output += f"\n{model}:\n{response}\n"
+    return llm_responses_output, similarity_output, differences_output, accuracy_output
 
-    # Print similarity scores
-    output += "\nSimilarity Scores:"
-    for pair, score in similarity_scores.items():
-        output += f"{pair}: {score:.4f}"
-
-    # Print highlighted differences
-    output += "\nDifferences Between Responses:"
-    for pair, diff_text in differences.items():
-        output += f"\n{pair}:\n{diff_text}\n"
-    
-    # Print fact accuracy scores
-    output += "\nAccuracy (Fact Checking with Knowledge Graph):"
-    for model, score_and_reasoning in kg_accuracy_scores.items():
-        output += f"\n{model}:\n{score_and_reasoning}\n"
-
-    return output
+# def answer_question_and_verify(text, question):
+#     output = ""
+#     responses = {
+#                     "Cohere": answer_question_with_cohere(text, question),
+#                     "Mistral": answer_question_with_mistral(text, question),
+#                     "Gemini": answer_question_with_cohere(text, question)
+#                 }
+#
+#     similarity_scores, differences, kg_accuracy_scores = verify_llm_responses(question, responses)
+#
+#     # Print the answers from each LLM
+#     output += "\nLLM Responses:"
+#     for model, response in responses.items():
+#         output += f"\n{model}:\n{response}\n"
+#
+#     # Print similarity scores
+#     output += "\nSimilarity Scores:"
+#     for pair, score in similarity_scores.items():
+#         output += f"{pair}: {score:.4f}"
+#
+#     # Print highlighted differences
+#     output += "\nDifferences Between Responses:"
+#     for pair, diff_text in differences.items():
+#         output += f"\n{pair}:\n{diff_text}\n"
+#
+#     # Print fact accuracy scores
+#     output += "\nAccuracy (Fact Checking with Knowledge Graph):"
+#     for model, score_and_reasoning in kg_accuracy_scores.items():
+#         output += f"\n{model}:\n{score_and_reasoning}\n"
+#
+#     return output
 
     
 # CLI for testing
@@ -211,10 +228,23 @@ if __name__ == "__main__":
                 question_input = gr.Textbox(label="Your Question")
                 question_button = gr.Button("Get Answer")
 
+            # with gr.Row():
+            #     answer_output = gr.Textbox(label="Answer", interactive=False)
+            #
+            # question_button.click(answer_question_and_verify, inputs=[text_output, question_input], outputs=answer_output)
             with gr.Row():
-                answer_output = gr.Textbox(label="Answer", interactive=False)
+                answer_output = gr.Textbox(label="LLM Responses", interactive=False)
+                similarity_output = gr.Textbox(label="Similarity Scores", interactive=False)
 
-            question_button.click(answer_question_and_verify, inputs=[text_output, question_input], outputs=answer_output)
+            with gr.Row():
+                differences_output = gr.Textbox(label="Differences Between Responses", interactive=False)
+                accuracy_output = gr.Textbox(label="Fact Checking Accuracy", interactive=False)
+
+            question_button.click(
+                answer_question_and_verify,
+                inputs=[text_output, question_input],
+                outputs=[answer_output, similarity_output, differences_output, accuracy_output]
+            )
 
         # Launch Gradio app
         demo.launch()
